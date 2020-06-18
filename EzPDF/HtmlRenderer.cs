@@ -52,14 +52,18 @@ namespace EzPDF
         public async Task<byte[]> RenderUrl(string url, HtmlRendererOptions htmlOptions = null,
                                             PdfOptions pdfOptions = null)
         {
-            void OnPageRequest(object sender, RequestEventArgs args)
+            async void OnPageRequest(object sender, RequestEventArgs args)
             {
                 if (args.Request.IsNavigationRequest)
                 {
-                    foreach (var (key, value) in htmlOptions.RequestHeaders)
+                    await args.Request.ContinueAsync(new Payload
                     {
-                        args.Request.Headers.Add(key, value);
-                    }
+                        Headers = htmlOptions.RequestHeaders
+                    });
+                }
+                else
+                {
+                    await args.Request.ContinueAsync();
                 }
             }
 
