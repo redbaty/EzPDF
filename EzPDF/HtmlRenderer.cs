@@ -4,7 +4,7 @@ using PuppeteerSharp;
 
 namespace EzPDF
 {
-    public class HtmlRenderer
+    public class HtmlRenderer : IDisposable, IAsyncDisposable
     {
         public HtmlRenderer()
         {
@@ -15,7 +15,7 @@ namespace EzPDF
             ConfigureLaunchOptions = configureLaunchOptions;
         }
 
-        private Browser Browser { get; set; }
+        private IBrowser Browser { get; set; }
 
         private Func<LaunchOptions, Task> ConfigureLaunchOptions { get; }
 
@@ -23,22 +23,24 @@ namespace EzPDF
         {
             if (Browser == null)
             {
-                await new BrowserFetcher().DownloadAsync(BrowserFetcher.DefaultRevision);
-                var launchOptions = new LaunchOptions
-                {
-                    Headless = true
-                };
-
+                var launchOptions = new LaunchOptions();
                 if (ConfigureLaunchOptions != null) await ConfigureLaunchOptions.Invoke(launchOptions);
+
+                var browserFetcher = new BrowserFetcher
+                {
+                    Browser = SupportedBrowser.Chrome
+                };
+                await browserFetcher.DownloadAsync();
                 Browser = await Puppeteer.LaunchAsync(launchOptions);
             }
         }
 
         public async Task<byte[]> RenderHtml(string html, HtmlRendererOptions htmlOptions = null,
-                                             PdfOptions pdfOptions = null)
+            PdfOptions pdfOptions = null)
         {
             await InitializeBrowser();
             var page = await Browser.NewPageAsync();
+
             await (htmlOptions?.RunBeforePageLoad?.Invoke(page) ?? Task.CompletedTask);
             await page.SetContentAsync(html);
             await (htmlOptions?.RunBeforePdf?.Invoke(page) ?? Task.CompletedTask);
@@ -50,7 +52,7 @@ namespace EzPDF
         }
 
         public async Task<byte[]> RenderUrl(string url, HtmlRendererOptions htmlOptions = null,
-                                            PdfOptions pdfOptions = null)
+            PdfOptions pdfOptions = null)
         {
             async void OnPageRequest(object sender, RequestEventArgs args)
             {
@@ -80,7 +82,7 @@ namespace EzPDF
             {
                 if (t.IsCompletedSuccessfully)
                 {
-                    return (object) t.Result;
+                    return (object)t.Result;
                 }
 
                 return t.Exception;
@@ -99,19 +101,32 @@ namespace EzPDF
 
             if (pdfData is Exception ex)
                 throw ex;
-            
+
             throw new InvalidOperationException("Something went terribly wrong.");
         }
 
         private static async Task<byte[]> RunInternal(string url, HtmlRendererOptions htmlOptions,
-                                                      PdfOptions pdfOptions, Page page)
+            PdfOptions pdfOptions, IPage page)
         {
             await (htmlOptions?.RunBeforePageLoad?.Invoke(page) ?? Task.CompletedTask);
             await page.GoToAsync(url);
             await (htmlOptions?.RunBeforePdf?.Invoke(page) ?? Task.CompletedTask);
-            var pdfData = pdfOptions == null ? await page.PdfDataAsync() : await page.PdfDataAsync(pdfOptions);
+            var pdfData = pdfOptions == null
+                ? await page.PdfDataAsync()
+                : await page.PdfDataAsync(pdfOptions);
             await (htmlOptions?.RunAfterPdf?.Invoke(page) ?? Task.CompletedTask);
             return pdfData;
+        }
+
+        public void Dispose()
+        {
+            Browser?.Dispose();
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            if (Browser != null)
+                await Browser.DisposeAsync();
         }
     }
 }

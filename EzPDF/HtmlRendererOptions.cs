@@ -7,11 +7,11 @@ namespace EzPDF
 {
     public class HtmlRendererOptions
     {
-        public Func<Page, Task> RunBeforePageLoad { get; set; }
+        public Func<IPage, Task> RunBeforePageLoad { get; set; }
 
-        public Func<Page, Task> RunBeforePdf { get; set; }
+        public Func<IPage, Task> RunBeforePdf { get; set; }
 
-        public Func<Page, Task> RunAfterPdf { get; set; }
+        public Func<IPage, Task> RunAfterPdf { get; set; }
         
         public Dictionary<string, string> RequestHeaders { get; set; }
     }
